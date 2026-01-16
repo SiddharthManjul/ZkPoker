@@ -190,7 +190,8 @@ pub fn has_straight(cards: [Card; 7]) -> bool {
     found
 }
 
-/// Evaluate a 7-card hand and return its rank
+/// Evaluate a 7-card hand and return composite score: rank * 100 + primary_value
+/// This allows proper comparison when base ranks are equal (e.g., pair of Aces > pair of Kings)
 pub fn evaluate_hand_rank(cards: [Card; 7]) -> Field {
     let value_counts = count_values(cards);
     let flush = has_flush(cards);
@@ -199,41 +200,65 @@ pub fn evaluate_hand_rank(cards: [Card; 7]) -> Field {
     let mut pairs: Field = 0;
     let mut trips: Field = 0;
     let mut quads: Field = 0;
+    let mut pair_value: Field = 0;
+    let mut pair_value_2: Field = 0;
+    let mut trip_value: Field = 0;
+    let mut quad_value: Field = 0;
+    let mut high_card: Field = 0;
 
+    // Find high card and count hand types
     for i in 0..13 {
-        if value_counts[i] == 2 {
+        let count = value_counts[i] as u64;
+        let val = i as Field;
+
+        if count >= 1 {
+            high_card = val; // Will end up with highest value
+        }
+        if count == 2 {
+            pair_value_2 = pair_value;
+            pair_value = val;
             pairs = pairs + 1;
         }
-        if value_counts[i] == 3 {
+        if count == 3 {
+            trip_value = val;
             trips = trips + 1;
         }
-        if value_counts[i] == 4 {
+        if count == 4 {
+            quad_value = val;
             quads = quads + 1;
         }
     }
 
     let mut rank = RANK_HIGH_CARD;
+    let mut primary_value = high_card;
 
     if pairs as u64 > 0 {
         rank = RANK_ONE_PAIR;
+        primary_value = pair_value;
     }
     if pairs as u64 > 1 {
         rank = RANK_TWO_PAIR;
+        primary_value = pair_value; // Higher pair (since we iterate ascending)
     }
     if trips as u64 > 0 {
         rank = RANK_THREE_OF_KIND;
+        primary_value = trip_value;
     }
     if straight {
         rank = RANK_STRAIGHT;
+        primary_value = high_card;
     }
     if flush {
         rank = RANK_FLUSH;
+        primary_value = high_card;
     }
     if (trips as u64 > 0) & (pairs as u64 > 0) {
         rank = RANK_FULL_HOUSE;
+        primary_value = trip_value;
     }
     if quads as u64 > 0 {
         rank = RANK_FOUR_OF_KIND;
+        primary_value = quad_value;
     }
     if straight & flush {
         let mut has_ten = false;
@@ -248,12 +273,16 @@ pub fn evaluate_hand_rank(cards: [Card; 7]) -> Field {
         }
         if has_ten & has_ace {
             rank = RANK_ROYAL_FLUSH;
+            primary_value = 12; // Ace high
         } else {
             rank = RANK_STRAIGHT_FLUSH;
+            primary_value = high_card;
         }
     }
 
-    rank
+    // Return composite score: rank * 100 + primary_value
+    // This ensures pair of Aces (1*100 + 12 = 112) beats pair of Kings (1*100 + 11 = 111)
+    rank * 100 + primary_value
 }
 
 // ============================================

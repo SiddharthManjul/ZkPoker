@@ -122,13 +122,14 @@ pub fn verify_winner_heads_up(
 
 #[test]
 fn test_evaluate_flush() {
-    // Cards that make a flush (5 clubs in community)
+    // Cards that make a flush (5 clubs) but NOT a straight
     let hole_cards: [Field; 2] = [12, 25]; // Ace clubs, Ace diamonds
-    // Community: 2c, 3c, 4c, 5c, 7c (all clubs)
-    let community: [Field; 5] = [0, 1, 2, 3, 5];
+    // Community: 2c, 3c, 4c, 6c, 8c (all clubs, no straight possible)
+    let community: [Field; 5] = [0, 1, 2, 4, 6];
 
     let rank = evaluate_player_hand(hole_cards, community);
-    assert(rank == RANK_FLUSH);
+    // Composite score: FLUSH(5) * 100 + high_card(12) = 512
+    assert(rank == RANK_FLUSH * 100 + 12);
 }
 
 #[test]
@@ -139,7 +140,8 @@ fn test_evaluate_two_pair() {
     let community: [Field; 5] = [25, 11, 26, 40, 29];
 
     let rank = evaluate_player_hand(hole_cards, community);
-    assert(rank == RANK_TWO_PAIR);
+    // Composite score: TWO_PAIR(2) * 100 + higher_pair(12=Aces) = 212
+    assert(rank == RANK_TWO_PAIR * 100 + 12);
 }
 
 #[test]
@@ -150,10 +152,11 @@ fn test_verify_hand_rank() {
         hash_with_salt(hole_cards[0], salts[0]),
         hash_with_salt(hole_cards[1], salts[1])
     ];
-    // Community: 2c, 2d, 2h, 4s, 4d - makes AAA22 = Full House
+    // Community: 2c, 2d, 2h, 4s, 4d - makes 222AA = Full House (trips of 2s)
     let community: [Field; 5] = [0, 13, 26, 42, 16];
 
-    let expected_rank = RANK_FULL_HOUSE;
+    // Composite score: FULL_HOUSE(6) * 100 + trip_value(0=Twos) = 600
+    let expected_rank = RANK_FULL_HOUSE * 100 + 0;
 
     verify_hand_rank(hole_cards, salts, community, commitments, expected_rank);
 }
