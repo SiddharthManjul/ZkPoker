@@ -1,0 +1,7 @@
+[package]
+name = "deck"
+type = "bin"
+authors = ["ZkPoker Team"]
+
+[dependencies]
+zkpoker_lib = { path = "../zkpoker_lib" }
