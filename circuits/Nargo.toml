@@ -1,7 +1,8 @@
-[package]
-name = "zkpoker"
-type = "bin"
-authors = ["ZkPoker Team"]
-
-[dependencies]
-poseidon = { tag = "v0.2.0", git = "https://github.com/noir-lang/poseidon" }
+[workspace]
+members = [
+    "crates/zkpoker_lib",
+    "crates/deck",
+    "crates/reveal",
+    "crates/showdown"
+]
+default-member = "crates/deck"
