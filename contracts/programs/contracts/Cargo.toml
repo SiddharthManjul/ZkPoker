@@ -14,7 +14,7 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
@@ -22,6 +22,11 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "0.32.1"
+anchor-spl = { version = "0.32.1", features = ["token"] }
+solana-keccak-hasher = "2.2"
+
+# Pin to avoid edition2024 requirement in newer versions
+constant_time_eq = "=0.3.1"
 
 
 [lints.rust]
