@@ -30,7 +30,8 @@ pub struct RevealHand<'info> {
     )]
     pub hand: Account<'info, Hand>,
 
-    /// CHECK: Verifier program for ZK proof verification
+    /// CHECK: SHOWDOWN verifier program - verified in verification function
+    #[account(constraint = verifier_program.key() == global_config.showdown_verifier @ ZkPokerError::ProofVerificationFailed)]
     pub verifier_program: AccountInfo<'info>,
 }
 

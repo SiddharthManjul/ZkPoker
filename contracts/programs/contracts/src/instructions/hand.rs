@@ -3,6 +3,7 @@ use solana_keccak_hasher as keccak;
 use crate::state::{GlobalConfig, Table, Hand, TableStatus, HandStage};
 use crate::errors::ZkPokerError;
 use crate::constants::{GLOBAL_SEED, TABLE_SEED, HAND_SEED};
+use crate::utils::verify_hole_card_commitments;
 
 /// Start a new hand
 #[derive(Accounts)]
@@ -101,7 +102,8 @@ pub struct CommitHoleCards<'info> {
     )]
     pub hand: Account<'info, Hand>,
 
-    /// CHECK: Verifier program for ZK proof verification
+    /// CHECK: DECK verifier program - verified in verification function
+    #[account(constraint = verifier_program.key() == global_config.deck_verifier @ ZkPokerError::ProofVerificationFailed)]
     pub verifier_program: AccountInfo<'info>,
 }
 
@@ -309,12 +311,11 @@ pub fn handle_reveal_seed(ctx: Context<RevealSeed>, seed: [u8; 32]) -> Result<()
 pub fn handle_commit_hole_cards(
     ctx: Context<CommitHoleCards>,
     commitments: [[u8; 32]; 2],
-    _proof: Vec<u8>,
+    proof: Vec<u8>,
 ) -> Result<()> {
     let table = &ctx.accounts.table;
     let hand = &mut ctx.accounts.hand;
     let player = ctx.accounts.player.key();
-    let _global_config = &ctx.accounts.global_config;
 
     // Verify player is at table
     let seat = table.get_seat(&player).ok_or(ZkPokerError::PlayerNotAtTable)?;
@@ -330,13 +331,22 @@ pub fn handle_commit_hole_cards(
     };
     require!(!already_committed, ZkPokerError::CardsAlreadyCommitted);
 
-    // TODO: Verify ZK proof via CPI to verifier program
-    // The proof should verify:
+    // Verify ZK proof via CPI to DECK verifier program
+    // The proof verifies:
     // 1. Cards are at correct positions (0,1 for P1 or 2,3 for P2)
     // 2. Cards derived from deck_seed correctly
     // 3. Commitments are hash(card, salt)
+    verify_hole_card_commitments(
+        &ctx.accounts.verifier_program,
+        &hand.deck_seed,
+        seat,
+        &commitments,
+        &proof,
+    )?;
 
-    // For now, store commitments (ZK verification to be implemented)
+    msg!("✓ Hole card commitments verified for seat {}", seat);
+
+    // Store verified commitments
     match seat {
         0 => {
             hand.p1_hole_commits = commitments;

@@ -1,7 +1,14 @@
 use anchor_lang::prelude::*;
 use crate::state::GlobalConfig;
 use crate::errors::ZkPokerError;
-use crate::constants::{GLOBAL_SEED, VERIFIER_PROGRAM_ID};
+use crate::constants::{
+    GLOBAL_SEED,
+    DECK_VERIFIER_PROGRAM_ID,
+    DEAL_VERIFIER_PROGRAM_ID,
+    REVEAL_VERIFIER_PROGRAM_ID,
+    SHOWDOWN_VERIFIER_PROGRAM_ID,
+    BET_VERIFIER_PROGRAM_ID
+};
 
 /// Initialize the global configuration
 #[derive(Accounts)]
@@ -62,14 +69,22 @@ pub fn handle_initialize(ctx: Context<Initialize>) -> Result<()> {
     global_config.init(
         ctx.accounts.authority.key(),
         ctx.accounts.usdc_mint.key(),
-        VERIFIER_PROGRAM_ID,
+        DECK_VERIFIER_PROGRAM_ID,
+        DEAL_VERIFIER_PROGRAM_ID,
+        REVEAL_VERIFIER_PROGRAM_ID,
+        SHOWDOWN_VERIFIER_PROGRAM_ID,
+        BET_VERIFIER_PROGRAM_ID,
         bump,
     );
 
     msg!("ZkPoker initialized");
     msg!("Authority: {}", ctx.accounts.authority.key());
     msg!("USDC Mint: {}", ctx.accounts.usdc_mint.key());
-    msg!("Verifier Program: {}", VERIFIER_PROGRAM_ID);
+    msg!("Deck Verifier: {}", DECK_VERIFIER_PROGRAM_ID);
+    msg!("Deal Verifier: {}", DEAL_VERIFIER_PROGRAM_ID);
+    msg!("Reveal Verifier: {}", REVEAL_VERIFIER_PROGRAM_ID);
+    msg!("Showdown Verifier: {}", SHOWDOWN_VERIFIER_PROGRAM_ID);
+    msg!("Bet Verifier: {}", BET_VERIFIER_PROGRAM_ID);
 
     Ok(())
 }
