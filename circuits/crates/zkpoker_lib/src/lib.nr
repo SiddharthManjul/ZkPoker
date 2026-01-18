@@ -317,3 +317,19 @@ fn test_hash_different_inputs() {
     let h2 = hash_with_salt(11, 12345);
     assert(h1 != h2);
 }
+
+#[test]
+fn test_valid_card_assertion() {
+    // Test valid cards at boundaries
+    assert_valid_card(0);  // First card
+    assert_valid_card(51); // Last card
+    assert_valid_card(25); // Middle card
+}
+
+#[test]
+fn test_hash_array_deterministic() {
+    let arr: [Field; 5] = [1, 2, 3, 4, 5];
+    let h1 = hash_array(arr);
+    let h2 = hash_array(arr);
+    assert(h1 == h2);
+}
