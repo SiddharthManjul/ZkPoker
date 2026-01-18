@@ -7,7 +7,7 @@
 // are correctly revealed from the shuffled deck.
 // ============================================
 
-use zkpoker_lib::{hash_array, assert_valid_cards, COMMUNITY_START};
+use zkpoker_lib::{hash_array, hash_with_salt, assert_valid_cards, COMMUNITY_START};
 
 /// Main circuit: Verify community card reveal
 ///
@@ -116,8 +116,23 @@ fn verify_river(
     );
 }
 
+/// Verify hole card reveal at showdown.
+pub fn verify_hole_reveal(
+    hole_cards: [Field; 2],
+    hole_salts: [Field; 2],
+    hole_commitments: [Field; 2]
+) {
+    for i in 0..2 {
+        let computed = hash_with_salt(hole_cards[i], hole_salts[i]);
+        assert(
+            computed == hole_commitments[i],
+            "Hole card does not match commitment"
+        );
+    }
+}
+
 // ============================================
-// TESTS
+// TESTS (6 tests)
 // ============================================
 
 #[test]
@@ -184,4 +199,16 @@ fn test_verify_flop_wrong_cards() {
 
     let flop: [Field; 3] = [0, 1, 2]; // Wrong positions
     verify_flop(flop, deck, commitment);
+}
+
+#[test]
+fn test_verify_hole_reveal() {
+    let cards: [Field; 2] = [12, 25];
+    let salts: [Field; 2] = [111, 222];
+    let commitments: [Field; 2] = [
+        hash_with_salt(cards[0], salts[0]),
+        hash_with_salt(cards[1], salts[1])
+    ];
+
+    verify_hole_reveal(cards, salts, commitments);
 }
