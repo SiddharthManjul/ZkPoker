@@ -5,6 +5,7 @@ members = [
     "crates/deal",
     "crates/reveal",
     "crates/showdown",
-    "crates/bet"
+    "crates/bet",
+    "crates/hash_helper"
 ]
 default-member = "crates/deck"
