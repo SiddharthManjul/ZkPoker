@@ -2,7 +2,9 @@
 members = [
     "crates/zkpoker_lib",
     "crates/deck",
+    "crates/deal",
     "crates/reveal",
-    "crates/showdown"
+    "crates/showdown",
+    "crates/bet"
 ]
 default-member = "crates/deck"
