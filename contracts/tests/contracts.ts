@@ -11,6 +11,9 @@ import {
 import { assert, expect } from "chai";
 import * as crypto from "crypto";
 import { keccak256 } from "js-sha3";
+import { shuffleDeck, getHoleCards, getFlopCards } from "./utils/deck";
+import { generateSalt } from "./utils/crypto";
+import { generateDeckProof, generateRevealProof, generateShowdownProof, proofToBytes } from "./utils/prover";
 
 describe("ZkPoker Contracts - Comprehensive Tests", () => {
   const provider = anchor.AnchorProvider.env();
@@ -511,6 +514,309 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
       // Just test that revealing wrong seed would fail
       // (We'd need to start a new hand to properly test this, skipping for brevity)
       console.log("   ✅ Seed validation tested (hash verification in contract)");
+    });
+  });
+
+  describe("ZK Proof Integration - Card Commitment & Reveal", () => {
+    let deckSeed: Buffer;
+    let shuffledDeck: number[];
+    let player1Salt1: bigint, player1Salt2: bigint;
+    let player2Salt1: bigint, player2Salt2: bigint;
+    let player1Commitments: [bigint, bigint];
+    let player2Commitments: [bigint, bigint];
+
+    before("Derive shuffled deck from deck_seed", async () => {
+      const handAccount = await program.account.hand.fetch(hand);
+      deckSeed = Buffer.from(handAccount.deckSeed);
+      shuffledDeck = shuffleDeck(deckSeed);
+
+      console.log("\n🎴 Shuffled deck derived from deck_seed");
+      console.log(`   First 10 cards: [${shuffledDeck.slice(0, 10).join(", ")}]`);
+    });
+
+    it("Player 1 commits hole cards with ZK proof", async function () {
+      this.timeout(30000);
+      console.log("🧪 Testing: commit_hole_cards (Player 1) with ZK proof");
+
+      const tableAccount = await program.account.table.fetch(table);
+      const playerSeat = tableAccount.playerOne.equals(player1.publicKey) ? 0 : 1;
+
+      const [card1, card2] = getHoleCards(shuffledDeck, playerSeat);
+      player1Salt1 = generateSalt();
+      player1Salt2 = generateSalt();
+
+      console.log(`   Player 1 cards: ${card1}, ${card2}`);
+
+      const { proof, commitments } = await generateDeckProof({
+        deckSeed,
+        playerSeat,
+        card1,
+        card2,
+        salt1: player1Salt1,
+        salt2: player1Salt2,
+      });
+
+      player1Commitments = commitments;
+      console.log(`   Commitments: ${commitments[0]}, ${commitments[1]}`);
+      console.log(`   Proof: ${proof.length} bytes`);
+
+      // Convert commitments to bytes arrays [[u8; 32]; 2]
+      const commitment1Bytes = Array.from(
+        Buffer.from(commitments[0].toString(16).padStart(64, "0"), "hex")
+      );
+      const commitment2Bytes = Array.from(
+        Buffer.from(commitments[1].toString(16).padStart(64, "0"), "hex")
+      );
+      const commitmentsArray = [commitment1Bytes, commitment2Bytes];
+
+      // Verifier program from constants
+      const deckVerifier = new PublicKey("AFSmH2yqM39QqBnvAnUXqUR6Z4jcEsCZLebYdJkwAwoH");
+
+      await program.methods
+        .commitHoleCards(commitmentsArray, proof)
+        .accounts({
+          player: player1.publicKey,
+          globalConfig,
+          table,
+          hand,
+          verifierProgram: deckVerifier,
+        })
+        .signers([player1])
+        .rpc();
+
+      const handAccount = await program.account.hand.fetch(hand);
+      assert.equal(handAccount.p1CardsCommitted, true);
+
+      console.log("   ✅ Player 1 hole cards committed with ZK proof");
+    });
+
+    it("Player 2 commits hole cards with ZK proof", async function () {
+      this.timeout(30000);
+      console.log("🧪 Testing: commit_hole_cards (Player 2) with ZK proof");
+
+      const tableAccount = await program.account.table.fetch(table);
+      const playerSeat = tableAccount.playerTwo.equals(player2.publicKey) ? 1 : 0;
+
+      const [card1, card2] = getHoleCards(shuffledDeck, playerSeat);
+      player2Salt1 = generateSalt();
+      player2Salt2 = generateSalt();
+
+      console.log(`   Player 2 cards: ${card1}, ${card2}`);
+
+      const { proof, commitments } = await generateDeckProof({
+        deckSeed,
+        playerSeat,
+        card1,
+        card2,
+        salt1: player2Salt1,
+        salt2: player2Salt2,
+      });
+
+      player2Commitments = commitments;
+      console.log(`   Commitments: ${commitments[0]}, ${commitments[1]}`);
+      console.log(`   Proof: ${proof.length} bytes`);
+
+      const commitment1Bytes = Array.from(
+        Buffer.from(commitments[0].toString(16).padStart(64, "0"), "hex")
+      );
+      const commitment2Bytes = Array.from(
+        Buffer.from(commitments[1].toString(16).padStart(64, "0"), "hex")
+      );
+      const commitmentsArray = [commitment1Bytes, commitment2Bytes];
+
+      const deckVerifier = new PublicKey("AFSmH2yqM39QqBnvAnUXqUR6Z4jcEsCZLebYdJkwAwoH");
+
+      await program.methods
+        .commitHoleCards(commitmentsArray, proof)
+        .accounts({
+          player: player2.publicKey,
+          globalConfig,
+          table,
+          hand,
+          verifierProgram: deckVerifier,
+        })
+        .signers([player2])
+        .rpc();
+
+      const handAccount = await program.account.hand.fetch(hand);
+      assert.equal(handAccount.p2CardsCommitted, true);
+      assert.deepEqual(handAccount.stage, { preFlop: {} });
+
+      console.log("   ✅ Player 2 hole cards committed with ZK proof");
+      console.log("   ✅ Stage advanced to PreFlop");
+    });
+
+    it("Reveals flop with ZK proof", async function () {
+      this.timeout(30000);
+      console.log("🧪 Testing: reveal_flop with ZK proof");
+
+      const flopCards = getFlopCards(shuffledDeck);
+      console.log(`   Flop cards: [${flopCards.join(", ")}]`);
+
+      const proof = await generateRevealProof({
+        deckSeed,
+        cards: Array.from(flopCards),
+        numCards: 3,
+        shuffledDeck,
+      });
+
+      console.log(`   Proof: ${proof.length} bytes`);
+
+      const revealVerifier = new PublicKey("6mfXRxK2smNqJVTrL3KDxNzNG28AD7N5wx6797aSJbqW");
+
+      await program.methods
+        .revealFlop(Array.from(flopCards), proof)
+        .accounts({
+          player: player1.publicKey,
+          globalConfig,
+          table,
+          hand,
+          verifierProgram: revealVerifier,
+        })
+        .signers([player1])
+        .rpc();
+
+      const handAccount = await program.account.hand.fetch(hand);
+      assert.deepEqual(handAccount.stage, { flop: {} });
+      assert.deepEqual(Array.from(handAccount.communityCards.slice(0, 3)), Array.from(flopCards));
+
+      console.log("   ✅ Flop revealed with ZK proof");
+      console.log("   ✅ Stage advanced to Flop");
+    });
+
+    it("Reveals turn with ZK proof", async function () {
+      this.timeout(30000);
+      console.log("🧪 Testing: reveal_turn with ZK proof");
+
+      const flopCards = getFlopCards(shuffledDeck);
+      const turnCard = shuffledDeck[21];
+      const cards = [...flopCards, turnCard];
+
+      console.log(`   Turn card: ${turnCard}`);
+
+      const proof = await generateRevealProof({
+        deckSeed,
+        cards,
+        numCards: 4,
+        shuffledDeck,
+      });
+
+      console.log(`   Proof: ${proof.length} bytes`);
+
+      const revealVerifier = new PublicKey("6mfXRxK2smNqJVTrL3KDxNzNG28AD7N5wx6797aSJbqW");
+
+      await program.methods
+        .revealTurn([turnCard], proof)
+        .accounts({
+          player: player1.publicKey,
+          globalConfig,
+          table,
+          hand,
+          verifierProgram: revealVerifier,
+        })
+        .signers([player1])
+        .rpc();
+
+      const handAccount = await program.account.hand.fetch(hand);
+      assert.deepEqual(handAccount.stage, { turn: {} });
+      assert.equal(handAccount.communityCards[3], turnCard);
+
+      console.log("   ✅ Turn revealed with ZK proof");
+      console.log("   ✅ Stage advanced to Turn");
+    });
+
+    it("Reveals river with ZK proof", async function () {
+      this.timeout(30000);
+      console.log("🧪 Testing: reveal_river with ZK proof");
+
+      const flopCards = getFlopCards(shuffledDeck);
+      const turnCard = shuffledDeck[21];
+      const riverCard = shuffledDeck[22];
+      const cards = [...flopCards, turnCard, riverCard];
+
+      console.log(`   River card: ${riverCard}`);
+
+      const proof = await generateRevealProof({
+        deckSeed,
+        cards,
+        numCards: 5,
+        shuffledDeck,
+      });
+
+      console.log(`   Proof: ${proof.length} bytes`);
+
+      const revealVerifier = new PublicKey("6mfXRxK2smNqJVTrL3KDxNzNG28AD7N5wx6797aSJbqW");
+
+      await program.methods
+        .revealRiver([riverCard], proof)
+        .accounts({
+          player: player1.publicKey,
+          globalConfig,
+          table,
+          hand,
+          verifierProgram: revealVerifier,
+        })
+        .signers([player1])
+        .rpc();
+
+      const handAccount = await program.account.hand.fetch(hand);
+      assert.deepEqual(handAccount.stage, { river: {} });
+      assert.equal(handAccount.communityCards[4], riverCard);
+
+      console.log("   ✅ River revealed with ZK proof");
+      console.log("   ✅ Stage advanced to River");
+    });
+
+    it("Player 1 reveals hand at showdown with ZK proof", async function () {
+      this.timeout(30000);
+      console.log("🧪 Testing: reveal_hand (Player 1) with ZK proof");
+
+      const tableAccount = await program.account.table.fetch(table);
+      const playerSeat = tableAccount.playerOne.equals(player1.publicKey) ? 0 : 1;
+      const [card1, card2] = getHoleCards(shuffledDeck, playerSeat);
+
+      const handAccount = await program.account.hand.fetch(hand);
+      const communityCards: [number, number, number, number, number] = [
+        handAccount.communityCards[0],
+        handAccount.communityCards[1],
+        handAccount.communityCards[2],
+        handAccount.communityCards[3],
+        handAccount.communityCards[4],
+      ];
+
+      console.log(`   Hole cards: ${card1}, ${card2}`);
+      console.log(`   Community: [${communityCards.join(", ")}]`);
+
+      const proof = await generateShowdownProof({
+        commitment1: player1Commitments[0],
+        commitment2: player1Commitments[1],
+        communityCards,
+        holeCard1: card1,
+        holeCard2: card2,
+        salt1: player1Salt1,
+        salt2: player1Salt2,
+      });
+
+      console.log(`   Proof: ${proof.length} bytes`);
+
+      const showdownVerifier = new PublicKey("BNFZkWw7zaKCHjQ1b4ZeT48abcKqFFJGeANA4aRfY2jz");
+
+      await program.methods
+        .revealHand([card1, card2], proof)
+        .accounts({
+          player: player1.publicKey,
+          globalConfig,
+          table,
+          hand,
+          verifierProgram: showdownVerifier,
+        })
+        .signers([player1])
+        .rpc();
+
+      const updatedHandAccount = await program.account.hand.fetch(hand);
+      assert.equal(updatedHandAccount.p1HandRevealed, true);
+
+      console.log("   ✅ Player 1 hand revealed with ZK proof");
     });
   });
 
