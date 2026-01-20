@@ -14,6 +14,8 @@ import { keccak256 } from "js-sha3";
 import { shuffleDeck, getHoleCards, getFlopCards } from "./utils/deck";
 import { generateSalt } from "./utils/crypto";
 import { generateDeckProof, generateRevealProof, generateShowdownProof, proofToBytes } from "./utils/prover";
+import { commitmentToBytes } from "./utils/commitments";
+
 
 describe("ZkPoker Contracts - Comprehensive Tests", () => {
   const provider = anchor.AnchorProvider.env();
@@ -560,17 +562,15 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
       console.log(`   Commitments: ${commitments[0]}, ${commitments[1]}`);
       console.log(`   Proof: ${proof.length} bytes`);
 
-      // Convert commitments to bytes arrays [[u8; 32]; 2]
-      const commitment1Bytes = Array.from(
-        Buffer.from(commitments[0].toString(16).padStart(64, "0"), "hex")
-      );
-      const commitment2Bytes = Array.from(
-        Buffer.from(commitments[1].toString(16).padStart(64, "0"), "hex")
-      );
-      const commitmentsArray = [commitment1Bytes, commitment2Bytes];
+      // Convert commitments to bytes arrays [[u8; 32]; 2] using fixed utility
+      const commitmentsArray = [
+        commitmentToBytes(commitments[0]),
+        commitmentToBytes(commitments[1]),
+      ];
+
 
       // Verifier program from constants
-      const deckVerifier = new PublicKey("AFSmH2yqM39QqBnvAnUXqUR6Z4jcEsCZLebYdJkwAwoH");
+      const deckVerifier = new PublicKey("9m5VeCmB9YCH3NGWu9Bs5m7ngzzyjWEcHecHHwabs3qg");
 
       await program.methods
         .commitHoleCards(commitmentsArray, proof)
@@ -616,15 +616,13 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
       console.log(`   Commitments: ${commitments[0]}, ${commitments[1]}`);
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const commitment1Bytes = Array.from(
-        Buffer.from(commitments[0].toString(16).padStart(64, "0"), "hex")
-      );
-      const commitment2Bytes = Array.from(
-        Buffer.from(commitments[1].toString(16).padStart(64, "0"), "hex")
-      );
-      const commitmentsArray = [commitment1Bytes, commitment2Bytes];
+      // Convert commitments to bytes arrays [[u8; 32]; 2] using fixed utility
+      const commitmentsArray = [
+        commitmentToBytes(commitments[0]),
+        commitmentToBytes(commitments[1]),
+      ];
 
-      const deckVerifier = new PublicKey("AFSmH2yqM39QqBnvAnUXqUR6Z4jcEsCZLebYdJkwAwoH");
+      const deckVerifier = new PublicKey("9m5VeCmB9YCH3NGWu9Bs5m7ngzzyjWEcHecHHwabs3qg");
 
       await program.methods
         .commitHoleCards(commitmentsArray, proof)
@@ -662,7 +660,7 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
 
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const revealVerifier = new PublicKey("6mfXRxK2smNqJVTrL3KDxNzNG28AD7N5wx6797aSJbqW");
+      const revealVerifier = new PublicKey("7cP73kZUSMWJWFrVU2g8pshLNMVbpKdrVM6QfXVZA5yU");
 
       await program.methods
         .revealFlop(Array.from(flopCards), proof)
@@ -703,7 +701,7 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
 
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const revealVerifier = new PublicKey("6mfXRxK2smNqJVTrL3KDxNzNG28AD7N5wx6797aSJbqW");
+      const revealVerifier = new PublicKey("7cP73kZUSMWJWFrVU2g8pshLNMVbpKdrVM6QfXVZA5yU");
 
       await program.methods
         .revealTurn([turnCard], proof)
@@ -745,7 +743,7 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
 
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const revealVerifier = new PublicKey("6mfXRxK2smNqJVTrL3KDxNzNG28AD7N5wx6797aSJbqW");
+      const revealVerifier = new PublicKey("7cP73kZUSMWJWFrVU2g8pshLNMVbpKdrVM6QfXVZA5yU");
 
       await program.methods
         .revealRiver([riverCard], proof)
@@ -787,7 +785,7 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
       console.log(`   Hole cards: ${card1}, ${card2}`);
       console.log(`   Community: [${communityCards.join(", ")}]`);
 
-      const proof = await generateShowdownProof({
+      const { proof, handRank } = await generateShowdownProof({
         commitment1: player1Commitments[0],
         commitment2: player1Commitments[1],
         communityCards,
@@ -797,12 +795,13 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
         salt2: player1Salt2,
       });
 
+      console.log(`   Hand rank: ${handRank}`);
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const showdownVerifier = new PublicKey("BNFZkWw7zaKCHjQ1b4ZeT48abcKqFFJGeANA4aRfY2jz");
+      const showdownVerifier = new PublicKey("8YsXYVwrAayARZYCxz8iDDVVRQdkcR3RWZL7oW1y5LfP");
 
       await program.methods
-        .revealHand([card1, card2], proof)
+        .revealHand(handRank, proof)
         .accounts({
           player: player1.publicKey,
           globalConfig,
