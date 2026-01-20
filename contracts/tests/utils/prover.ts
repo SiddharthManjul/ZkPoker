@@ -62,15 +62,17 @@ async function generateWitness(
 
 /**
  * Generate proof using Sunspot
+ * Returns both proof and public witness
  */
 async function generateProofWithSunspot(
   circuitName: string,
   witnessPath: string
-): Promise<Buffer> {
+): Promise<{ proof: Buffer; publicWitness: Buffer }> {
   const acirPath = path.join(CIRCUITS_TARGET, `${circuitName}.json`);
   const ccsPath = path.join(CIRCUITS_TARGET, `${circuitName}.ccs`);
   const pkPath = path.join(CIRCUITS_TARGET, `${circuitName}.pk`);
   const proofPath = path.join(CIRCUITS_TARGET, `${circuitName}.proof`);
+  const publicWitnessPath = path.join(CIRCUITS_TARGET, `${circuitName}.pw`);
 
   // Verify files exist
   if (!fs.existsSync(acirPath)) {
@@ -87,15 +89,19 @@ async function generateProofWithSunspot(
   const cmd = `${SUNSPOT_BIN} prove ${acirPath} ${witnessPath} ${ccsPath} ${pkPath}`;
   await execAsync(cmd);
 
-  // Sunspot writes proof to target directory
+  // Sunspot writes proof and public witness to target directory
   if (!fs.existsSync(proofPath)) {
     throw new Error(`Proof not generated at ${proofPath}`);
   }
+  if (!fs.existsSync(publicWitnessPath)) {
+    throw new Error(`Public witness not generated at ${publicWitnessPath}`);
+  }
 
-  // Read proof
+  // Read proof and public witness
   const proof = fs.readFileSync(proofPath);
+  const publicWitness = fs.readFileSync(publicWitnessPath);
 
-  return proof;
+  return { proof, publicWitness };
 }
 
 /**
@@ -133,8 +139,10 @@ export async function generateDeckProof(params: {
       }
     }
 
-    const proof = await generateProofWithSunspot("deck", witnessPath);
-    return { proof, commitments };
+    const { proof, publicWitness } = await generateProofWithSunspot("deck", witnessPath);
+    // Sunspot verifier expects proof + public witness concatenated
+    const proofAndWitness = Buffer.concat([proof, publicWitness]);
+    return { proof: proofAndWitness, commitments };
   } catch (error: any) {
     throw new Error(`DECK proof generation failed: ${error.message}`);
   }
@@ -166,7 +174,9 @@ export async function generateRevealProof(params: {
     };
 
     const { witnessPath } = await generateWitness("reveal", inputs);
-    return await generateProofWithSunspot("reveal", witnessPath);
+    const { proof, publicWitness } = await generateProofWithSunspot("reveal", witnessPath);
+    // Sunspot verifier expects proof + public witness concatenated
+    return Buffer.concat([proof, publicWitness]);
   } catch (error: any) {
     throw new Error(`REVEAL proof generation failed: ${error.message}`);
   }
@@ -174,6 +184,7 @@ export async function generateRevealProof(params: {
 
 /**
  * Generate SHOWDOWN circuit proof
+ * Returns proof and hand rank (circuit public output)
  */
 export async function generateShowdownProof(params: {
   commitment1: bigint;
@@ -183,7 +194,7 @@ export async function generateShowdownProof(params: {
   holeCard2: number;
   salt1: bigint;
   salt2: bigint;
-}): Promise<Buffer> {
+}): Promise<{ proof: Buffer; handRank: bigint }> {
   const { commitment1, commitment2, communityCards, holeCard1, holeCard2, salt1, salt2 } = params;
 
   try {
@@ -197,8 +208,21 @@ export async function generateShowdownProof(params: {
       salt2: salt2.toString(),
     };
 
-    const { witnessPath } = await generateWitness("showdown", inputs);
-    return await generateProofWithSunspot("showdown", witnessPath);
+    const { witnessPath, publicOutputs } = await generateWitness("showdown", inputs);
+
+    // Parse hand rank from circuit output
+    let handRank: bigint = 0n;
+    if (publicOutputs) {
+      const match = publicOutputs.match(/0x[0-9a-f]+/i);
+      if (match) {
+        handRank = BigInt(match[0]);
+      }
+    }
+
+    const { proof, publicWitness } = await generateProofWithSunspot("showdown", witnessPath);
+    // Sunspot verifier expects proof + public witness concatenated
+    const proofAndWitness = Buffer.concat([proof, publicWitness]);
+    return { proof: proofAndWitness, handRank };
   } catch (error: any) {
     throw new Error(`SHOWDOWN proof generation failed: ${error.message}`);
   }
@@ -212,8 +236,11 @@ export function proofToBytes(proof: Buffer): number[] {
 }
 
 /**
- * Verify proof size (Groth16 proofs are 388 bytes)
+ * Verify proof size (Groth16 proof + public witness)
+ * Proof is 388 bytes + variable-length public witness
  */
-export function verifyProofSize(proof: Buffer, expectedSize: number = 388): boolean {
-  return proof.length === expectedSize;
+export function verifyProofSize(proof: Buffer, minSize: number = 388): boolean {
+  // Proof should be at least 388 bytes (Groth16 proof)
+  // Plus public witness (12 header bytes + N*32 bytes for fields)
+  return proof.length >= minSize;
 }
