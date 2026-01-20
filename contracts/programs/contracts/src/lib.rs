@@ -105,6 +105,33 @@ pub mod contracts {
     }
 
     // ============================================
+    // PROOF BUFFER INSTRUCTIONS
+    // ============================================
+
+    /// Initialize a proof buffer for uploading large ZK proofs
+    pub fn init_proof_buffer(
+        ctx: Context<InitProofBuffer>,
+        proof_type: u8,
+        proof_size: u16,
+    ) -> Result<()> {
+        instructions::proof_buffer::handle_init_proof_buffer(ctx, proof_type, proof_size)
+    }
+
+    /// Upload a chunk of proof data to the buffer
+    pub fn upload_proof_chunk(
+        ctx: Context<UploadProofChunk>,
+        offset: u16,
+        data: Vec<u8>,
+    ) -> Result<()> {
+        instructions::proof_buffer::handle_upload_proof_chunk(ctx, offset, data)
+    }
+
+    /// Close proof buffer and reclaim rent
+    pub fn close_proof_buffer(ctx: Context<CloseProofBuffer>) -> Result<()> {
+        instructions::proof_buffer::handle_close_proof_buffer(ctx)
+    }
+
+    // ============================================
     // BETTING INSTRUCTIONS
     // ============================================
 
