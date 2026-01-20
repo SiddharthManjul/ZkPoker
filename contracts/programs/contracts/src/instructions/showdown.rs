@@ -1,12 +1,13 @@
 use anchor_lang::prelude::*;
-use crate::state::{GlobalConfig, Table, Hand, TableStatus, HandStage};
+use crate::state::{GlobalConfig, Table, Hand, TableStatus, HandStage, ProofBuffer, ProofType};
 use crate::errors::ZkPokerError;
 use crate::constants::{GLOBAL_SEED, TABLE_SEED, HAND_SEED};
 use crate::utils::verify_hand_reveal;
 
-/// Reveal hand at showdown
+/// Reveal hand at showdown (proof from buffer)
 #[derive(Accounts)]
 pub struct RevealHand<'info> {
+    #[account(mut)]
     pub player: Signer<'info>,
 
     #[account(
@@ -29,6 +30,17 @@ pub struct RevealHand<'info> {
         constraint = hand.table == table.key()
     )]
     pub hand: Account<'info, Hand>,
+
+    /// Proof buffer containing the ZK proof data
+    #[account(
+        mut,
+        close = player,
+        has_one = player @ ZkPokerError::Unauthorized,
+        constraint = proof_buffer.hand == hand.key() @ ZkPokerError::BufferMismatch,
+        constraint = proof_buffer.proof_type == ProofType::Showdown @ ZkPokerError::BufferMismatch,
+        constraint = proof_buffer.complete @ ZkPokerError::BufferNotComplete
+    )]
+    pub proof_buffer: Account<'info, ProofBuffer>,
 
     /// CHECK: SHOWDOWN verifier program - verified in verification function
     #[account(constraint = verifier_program.key() == global_config.showdown_verifier @ ZkPokerError::ProofVerificationFailed)]
@@ -56,15 +68,15 @@ pub struct ClaimPot<'info> {
     pub hand: Account<'info, Hand>,
 }
 
-/// Reveal hand handler
+/// Reveal hand handler (proof from buffer)
 pub fn handle_reveal_hand(
     ctx: Context<RevealHand>,
     hand_rank: u64,
-    proof: Vec<u8>,
 ) -> Result<()> {
     let table = &mut ctx.accounts.table;
     let hand = &mut ctx.accounts.hand;
     let player = ctx.accounts.player.key();
+    let proof_buffer = &ctx.accounts.proof_buffer;
 
     // Verify player is at table
     let seat = table.get_seat(&player).ok_or(ZkPokerError::PlayerNotAtTable)?;
@@ -83,11 +95,13 @@ pub fn handle_reveal_hand(
     };
     require!(!already_revealed, ZkPokerError::HandAlreadyRevealed);
 
+    // Get proof data from buffer
+    let proof_data = proof_buffer.get_proof_data()?;
+
     // Verify ZK proof
-    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_hand_reveal(
         &ctx.accounts.verifier_program,
-        &proof,
+        proof_data,
     )?;
 
     // Store verified hand rank
