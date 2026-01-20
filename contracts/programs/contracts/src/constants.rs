@@ -4,16 +4,16 @@ use anchor_lang::prelude::*;
 /// Each circuit has its own verifier program
 
 /// Deck Circuit Verifier - for hole card commitments
-pub const DECK_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("AFSmH2yqM39QqBnvAnUXqUR6Z4jcEsCZLebYdJkwAwoH");
+pub const DECK_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("9m5VeCmB9YCH3NGWu9Bs5m7ngzzyjWEcHecHHwabs3qg");
 
 /// Deal Circuit Verifier - for dealing cards from deck
 pub const DEAL_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("DewUCARGDNMyp2yWwn69VF5upEuchW7pfUMAAznFiJzy");
 
 /// Reveal Circuit Verifier - for revealing community cards
-pub const REVEAL_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("6mfXRxK2smNqJVTrL3KDxNzNG28AD7N5wx6797aSJbqW");
+pub const REVEAL_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("7cP73kZUSMWJWFrVU2g8pshLNMVbpKdrVM6QfXVZA5yU");
 
 /// Showdown Circuit Verifier - for hand reveals at showdown
-pub const SHOWDOWN_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("BNFZkWw7zaKCHjQ1b4ZeT48abcKqFFJGeANA4aRfY2jz");
+pub const SHOWDOWN_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("8YsXYVwrAayARZYCxz8iDDVVRQdkcR3RWZL7oW1y5LfP");
 
 /// Bet Circuit Verifier - for bet/balance verification
 pub const BET_VERIFIER_PROGRAM_ID: Pubkey = pubkey!("6kucgYYg8q9PVWTxvzH1sA9vgg5onhmSYUcuMD3zkwai");

@@ -157,4 +157,19 @@ pub enum ZkPokerError {
 
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
+
+    // ============================================
+    // Proof Buffer Errors (6800-6899)
+    // ============================================
+    #[msg("Invalid proof type")]
+    InvalidProofType,
+
+    #[msg("Proof buffer already complete")]
+    BufferAlreadyComplete,
+
+    #[msg("Proof buffer not complete")]
+    BufferNotComplete,
+
+    #[msg("Proof buffer mismatch")]
+    BufferMismatch,
 }
