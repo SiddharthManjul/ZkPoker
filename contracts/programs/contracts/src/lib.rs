@@ -90,13 +90,12 @@ pub mod contracts {
         instructions::hand::handle_reveal_seed(ctx, seed)
     }
 
-    /// Commit hole cards with ZK proof
+    /// Commit hole cards with ZK proof (proof is read from ProofBuffer PDA)
     pub fn commit_hole_cards(
         ctx: Context<CommitHoleCards>,
         commitments: [[u8; 32]; 2],
-        proof: Vec<u8>,
     ) -> Result<()> {
-        instructions::hand::handle_commit_hole_cards(ctx, commitments, proof)
+        instructions::hand::handle_commit_hole_cards(ctx, commitments)
     }
 
     /// Claim win due to opponent timeout
@@ -169,44 +168,40 @@ pub mod contracts {
     // REVEAL INSTRUCTIONS
     // ============================================
 
-    /// Reveal flop cards with ZK proof
+    /// Reveal flop cards with ZK proof (proof read from ProofBuffer PDA)
     pub fn reveal_flop(
         ctx: Context<RevealCommunity>,
         cards: [u8; 3],
-        proof: Vec<u8>,
     ) -> Result<()> {
-        instructions::reveal::handle_reveal_flop(ctx, cards, proof)
+        instructions::reveal::handle_reveal_flop(ctx, cards)
     }
 
-    /// Reveal turn card with ZK proof
+    /// Reveal turn card with ZK proof (proof read from ProofBuffer PDA)
     pub fn reveal_turn(
         ctx: Context<RevealCommunity>,
         card: u8,
-        proof: Vec<u8>,
     ) -> Result<()> {
-        instructions::reveal::handle_reveal_turn(ctx, card, proof)
+        instructions::reveal::handle_reveal_turn(ctx, card)
     }
 
-    /// Reveal river card with ZK proof
+    /// Reveal river card with ZK proof (proof read from ProofBuffer PDA)
     pub fn reveal_river(
         ctx: Context<RevealCommunity>,
         card: u8,
-        proof: Vec<u8>,
     ) -> Result<()> {
-        instructions::reveal::handle_reveal_river(ctx, card, proof)
+        instructions::reveal::handle_reveal_river(ctx, card)
     }
 
     // ============================================
     // SHOWDOWN INSTRUCTIONS
     // ============================================
 
-    /// Reveal hand at showdown with ZK proof
+    /// Reveal hand at showdown with ZK proof (proof read from ProofBuffer PDA)
     pub fn reveal_hand(
         ctx: Context<RevealHand>,
         hand_rank: u64,
-        proof: Vec<u8>,
     ) -> Result<()> {
-        instructions::showdown::handle_reveal_hand(ctx, hand_rank, proof)
+        instructions::showdown::handle_reveal_hand(ctx, hand_rank)
     }
 
     /// Claim the pot after winning
