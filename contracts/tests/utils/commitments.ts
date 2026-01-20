@@ -53,12 +53,30 @@ export function verifyHoleCommitments(
 
 /**
  * Convert BigInt to Buffer for on-chain submission
- * Field elements in BN254 are 32 bytes
+ * Field elements in BN254 are 32 bytes (254 bits)
+ * Ensures the value is reduced mod the field prime
  */
 export function fieldToBuffer(field: bigint): Buffer {
-  const hex = field.toString(16).padStart(64, "0");
+  // BN254 prime: 21888242871839275222246405745257275088548364400416034343698204186575808495617
+  const BN254_FIELD_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+  
+  // Reduce mod field prime to ensure valid field element
+  const reduced = field % BN254_FIELD_PRIME;
+  
+  // Convert to hex and ensure exactly 64 characters (32 bytes)
+  let hex = reduced.toString(16);
+  
+  // Pad with leading zeros if needed
+  hex = hex.padStart(64, "0");
+  
+  // Truncate if somehow longer (shouldn't happen after mod, but safety check)
+  if (hex.length > 64) {
+    hex = hex.slice(-64);
+  }
+  
   return Buffer.from(hex, "hex");
 }
+
 
 /**
  * Convert BigInt array to Buffer array
