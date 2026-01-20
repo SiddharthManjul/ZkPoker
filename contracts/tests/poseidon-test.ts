@@ -2,7 +2,7 @@
  * Test Poseidon2 hash to verify it matches Noir circuits
  */
 
-import { poseidon2 } from "poseidon-lite";
+import { poseidon2Hash } from "@zkpassport/poseidon2";
 import { commitCard } from "./utils/crypto";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -21,11 +21,12 @@ async function testCircuitHash() {
   console.log(`  salt: ${salt}`);
   console.log();
 
-  // TypeScript Poseidon2
-  const tsHash = poseidon2([BigInt(card), salt]);
-  console.log("TypeScript poseidon-lite result:");
+  // TypeScript Poseidon2 (using @zkpassport/poseidon2)
+  const tsHash = poseidon2Hash([BigInt(card), salt]);
+  console.log("TypeScript @zkpassport/poseidon2 result:");
   console.log(`  ${tsHash}`);
   console.log(`  0x${tsHash.toString(16)}`);
+
   console.log();
 
   // Run the DECK circuit to see what it produces
