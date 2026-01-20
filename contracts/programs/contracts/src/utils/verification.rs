@@ -14,8 +14,7 @@ use crate::errors::ZkPokerError;
 /// # Arguments
 /// * `verifier_program` - The verifier program account
 /// * `expected_verifier_id` - The expected verifier program ID for this circuit
-/// * `proof` - The Groth16 proof bytes (388 bytes)
-/// * `public_inputs` - The public inputs to the circuit
+/// * `proof_and_witness` - The proof + public witness bytes (proof is 388 bytes + variable witness size)
 ///
 /// # Returns
 /// * `Ok(())` if proof is valid
@@ -23,8 +22,7 @@ use crate::errors::ZkPokerError;
 pub fn verify_groth16_proof(
     verifier_program: &AccountInfo,
     expected_verifier_id: &Pubkey,
-    proof: &[u8],
-    public_inputs: &[u8],
+    proof_and_witness: &[u8],
 ) -> Result<()> {
     // Verify verifier program ID matches expected circuit verifier
     require!(
@@ -32,28 +30,22 @@ pub fn verify_groth16_proof(
         ZkPokerError::ProofVerificationFailed
     );
 
-    // Verify proof size (Groth16 proofs are 388 bytes)
+    // Verify minimum size (proof must be at least PROOF_SIZE bytes)
     require!(
-        proof.len() == PROOF_SIZE,
+        proof_and_witness.len() >= PROOF_SIZE,
         ZkPokerError::InvalidProofFormat
     );
 
     msg!("Verifying ZK proof via CPI");
     msg!("Verifier program: {}", verifier_program.key());
-    msg!("Proof size: {} bytes", proof.len());
-    msg!("Public inputs size: {} bytes", public_inputs.len());
+    msg!("Proof + witness size: {} bytes", proof_and_witness.len());
 
-    // Build instruction data: proof || public_inputs
-    // The Sunspot/gnark-solana verifier expects the proof concatenated with public inputs
-    let mut instruction_data = Vec::with_capacity(proof.len() + public_inputs.len());
-    instruction_data.extend_from_slice(proof);
-    instruction_data.extend_from_slice(public_inputs);
-
-    // Create instruction for the verifier program
+    // The instruction data is already in the correct format: proof || public_witness
+    // Sunspot generates this format automatically
     let verify_ix = Instruction {
         program_id: *expected_verifier_id,
         accounts: vec![], // Verifier programs are stateless
-        data: instruction_data,
+        data: proof_and_witness.to_vec(),
     };
 
     // Execute CPI call to verifier program
@@ -72,26 +64,12 @@ pub fn verify_groth16_proof(
 ///
 /// # Arguments
 /// * `verifier_program` - The verifier program account (must be DECK verifier)
-/// * `deck_seed` - The combined deck seed
-/// * `player_seat` - The player's seat (0 or 1)
-/// * `commitments` - The two hole card commitments
-/// * `proof` - The ZK proof
+/// * `proof_and_witness` - The proof + public witness from Sunspot
 pub fn verify_hole_card_commitments(
     verifier_program: &AccountInfo,
-    deck_seed: &[u8; 32],
-    player_seat: u8,
-    commitments: &[[u8; 32]; 2],
-    proof: &[u8],
+    proof_and_witness: &[u8],
 ) -> Result<()> {
-    // Build public inputs
-    // Format: deck_seed || player_seat || commitment_1 || commitment_2
-    let mut public_inputs = Vec::with_capacity(32 + 1 + 32 + 32);
-    public_inputs.extend_from_slice(deck_seed);
-    public_inputs.push(player_seat);
-    public_inputs.extend_from_slice(&commitments[0]);
-    public_inputs.extend_from_slice(&commitments[1]);
-
-    verify_groth16_proof(verifier_program, &DECK_VERIFIER_PROGRAM_ID, proof, &public_inputs)
+    verify_groth16_proof(verifier_program, &DECK_VERIFIER_PROGRAM_ID, proof_and_witness)
 }
 
 /// Verify community card reveal (uses REVEAL circuit)
@@ -101,30 +79,12 @@ pub fn verify_hole_card_commitments(
 ///
 /// # Arguments
 /// * `verifier_program` - The verifier program account (must be REVEAL verifier)
-/// * `deck_seed` - The combined deck seed
-/// * `cards` - The revealed card indices
-/// * `positions` - The expected positions in the deck
-/// * `proof` - The ZK proof
+/// * `proof_and_witness` - The proof + public witness from Sunspot
 pub fn verify_community_cards(
     verifier_program: &AccountInfo,
-    deck_seed: &[u8; 32],
-    cards: &[u8],
-    positions: &[u8],
-    proof: &[u8],
+    proof_and_witness: &[u8],
 ) -> Result<()> {
-    // Validate card indices
-    for card in cards {
-        require!(*card < 52, ZkPokerError::InvalidCardIndex);
-    }
-
-    // Build public inputs
-    // Format: deck_seed || cards || positions
-    let mut public_inputs = Vec::with_capacity(32 + cards.len() + positions.len());
-    public_inputs.extend_from_slice(deck_seed);
-    public_inputs.extend_from_slice(cards);
-    public_inputs.extend_from_slice(positions);
-
-    verify_groth16_proof(verifier_program, &REVEAL_VERIFIER_PROGRAM_ID, proof, &public_inputs)
+    verify_groth16_proof(verifier_program, &REVEAL_VERIFIER_PROGRAM_ID, proof_and_witness)
 }
 
 /// Verify hand reveal at showdown (uses SHOWDOWN circuit)
@@ -135,24 +95,10 @@ pub fn verify_community_cards(
 ///
 /// # Arguments
 /// * `verifier_program` - The verifier program account (must be SHOWDOWN verifier)
-/// * `commitments` - The stored hole card commitments
-/// * `community_cards` - The revealed community cards
-/// * `hand_rank` - The claimed hand rank
-/// * `proof` - The ZK proof
+/// * `proof_and_witness` - The proof + public witness from Sunspot
 pub fn verify_hand_reveal(
     verifier_program: &AccountInfo,
-    commitments: &[[u8; 32]; 2],
-    community_cards: &[u8; 5],
-    hand_rank: u64,
-    proof: &[u8],
+    proof_and_witness: &[u8],
 ) -> Result<()> {
-    // Build public inputs
-    // Format: commitment_1 || commitment_2 || community_cards || hand_rank
-    let mut public_inputs = Vec::with_capacity(32 + 32 + 5 + 8);
-    public_inputs.extend_from_slice(&commitments[0]);
-    public_inputs.extend_from_slice(&commitments[1]);
-    public_inputs.extend_from_slice(community_cards);
-    public_inputs.extend_from_slice(&hand_rank.to_le_bytes());
-
-    verify_groth16_proof(verifier_program, &SHOWDOWN_VERIFIER_PROGRAM_ID, proof, &public_inputs)
+    verify_groth16_proof(verifier_program, &SHOWDOWN_VERIFIER_PROGRAM_ID, proof_and_witness)
 }
