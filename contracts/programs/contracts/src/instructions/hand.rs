@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use solana_keccak_hasher as keccak;
-use crate::state::{GlobalConfig, Table, Hand, TableStatus, HandStage};
+use crate::state::{GlobalConfig, Table, Hand, TableStatus, HandStage, ProofBuffer, ProofType};
 use crate::errors::ZkPokerError;
 use crate::constants::{GLOBAL_SEED, TABLE_SEED, HAND_SEED};
 use crate::utils::verify_hole_card_commitments;
@@ -77,9 +77,10 @@ pub struct RevealSeed<'info> {
     pub hand: Account<'info, Hand>,
 }
 
-/// Commit hole cards (with ZK proof)
+/// Commit hole cards (with ZK proof from buffer)
 #[derive(Accounts)]
 pub struct CommitHoleCards<'info> {
+    #[account(mut)]
     pub player: Signer<'info>,
 
     #[account(
@@ -101,6 +102,17 @@ pub struct CommitHoleCards<'info> {
         constraint = hand.table == table.key()
     )]
     pub hand: Account<'info, Hand>,
+
+    /// Proof buffer containing the ZK proof data
+    #[account(
+        mut,
+        close = player,
+        has_one = player @ ZkPokerError::Unauthorized,
+        constraint = proof_buffer.hand == hand.key() @ ZkPokerError::BufferMismatch,
+        constraint = proof_buffer.proof_type == ProofType::Deck @ ZkPokerError::BufferMismatch,
+        constraint = proof_buffer.complete @ ZkPokerError::BufferNotComplete
+    )]
+    pub proof_buffer: Account<'info, ProofBuffer>,
 
     /// CHECK: DECK verifier program - verified in verification function
     #[account(constraint = verifier_program.key() == global_config.deck_verifier @ ZkPokerError::ProofVerificationFailed)]
@@ -307,15 +319,15 @@ pub fn handle_reveal_seed(ctx: Context<RevealSeed>, seed: [u8; 32]) -> Result<()
     Ok(())
 }
 
-/// Commit hole cards handler (with ZK proof verification)
+/// Commit hole cards handler (with ZK proof verification from buffer)
 pub fn handle_commit_hole_cards(
     ctx: Context<CommitHoleCards>,
     commitments: [[u8; 32]; 2],
-    proof: Vec<u8>,
 ) -> Result<()> {
     let table = &ctx.accounts.table;
     let hand = &mut ctx.accounts.hand;
     let player = ctx.accounts.player.key();
+    let proof_buffer = &ctx.accounts.proof_buffer;
 
     // Verify player is at table
     let seat = table.get_seat(&player).ok_or(ZkPokerError::PlayerNotAtTable)?;
@@ -331,15 +343,17 @@ pub fn handle_commit_hole_cards(
     };
     require!(!already_committed, ZkPokerError::CardsAlreadyCommitted);
 
+    // Get proof data from buffer
+    let proof_data = proof_buffer.get_proof_data()?;
+
     // Verify ZK proof via CPI to DECK verifier program
     // The proof verifies:
     // 1. Cards are at correct positions (0,1 for P1 or 2,3 for P2)
     // 2. Cards derived from deck_seed correctly
     // 3. Commitments are hash(card, salt)
-    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_hole_card_commitments(
         &ctx.accounts.verifier_program,
-        &proof,
+        proof_data,
     )?;
 
     msg!("✓ Hole card commitments verified for seat {}", seat);
