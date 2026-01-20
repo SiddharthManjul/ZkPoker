@@ -336,11 +336,9 @@ pub fn handle_commit_hole_cards(
     // 1. Cards are at correct positions (0,1 for P1 or 2,3 for P2)
     // 2. Cards derived from deck_seed correctly
     // 3. Commitments are hash(card, salt)
+    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_hole_card_commitments(
         &ctx.accounts.verifier_program,
-        &hand.deck_seed,
-        seat,
-        &commitments,
         &proof,
     )?;
 
