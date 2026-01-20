@@ -189,7 +189,7 @@ describe("ZK Proof Generation Tests", () => {
       console.log(`  Hand rank: ${handRank}`);
 
       // Use commitments from DECK circuit, not TypeScript computation
-      const proof = await generateShowdownProof({
+      const result = await generateShowdownProof({
         commitment1: player0Commitments[0],
         commitment2: player0Commitments[1],
         communityCards,
@@ -199,9 +199,10 @@ describe("ZK Proof Generation Tests", () => {
         salt2: player0Salt2,
       });
 
-      expect(proof).to.be.instanceOf(Buffer);
-      expect(verifyProofSize(proof)).to.be.true;
-      console.log(`  ✅ Proof generated: ${proof.length} bytes`);
+      expect(result.proof).to.be.instanceOf(Buffer);
+      expect(verifyProofSize(result.proof)).to.be.true;
+      console.log(`  ✅ Proof generated: ${result.proof.length} bytes`);
+      console.log(`  ✅ Hand rank from circuit: ${result.handRank}`);
     });
   });
 
