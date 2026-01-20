@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::state::{GlobalConfig, Table, Hand, HandStage};
 use crate::errors::ZkPokerError;
-use crate::constants::{GLOBAL_SEED, TABLE_SEED, HAND_SEED, FLOP_1_POS, FLOP_2_POS, FLOP_3_POS, TURN_POS, RIVER_POS};
+use crate::constants::{GLOBAL_SEED, TABLE_SEED, HAND_SEED};
 use crate::utils::verify_community_cards;
 
 /// Reveal community cards context
@@ -60,12 +60,9 @@ pub fn handle_reveal_flop(
     }
 
     // Verify ZK proof that cards are at correct positions
-    let positions = [FLOP_1_POS, FLOP_2_POS, FLOP_3_POS];
+    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_community_cards(
         &ctx.accounts.verifier_program,
-        &hand.deck_seed,
-        &cards,
-        &positions,
         &proof,
     )?;
 
@@ -108,11 +105,9 @@ pub fn handle_reveal_turn(
     require!(card < 52, ZkPokerError::InvalidCardIndex);
 
     // Verify ZK proof that card is at correct position
+    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_community_cards(
         &ctx.accounts.verifier_program,
-        &hand.deck_seed,
-        &[card],
-        &[TURN_POS],
         &proof,
     )?;
 
@@ -155,11 +150,9 @@ pub fn handle_reveal_river(
     require!(card < 52, ZkPokerError::InvalidCardIndex);
 
     // Verify ZK proof that card is at correct position
+    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_community_cards(
         &ctx.accounts.verifier_program,
-        &hand.deck_seed,
-        &[card],
-        &[RIVER_POS],
         &proof,
     )?;
 
