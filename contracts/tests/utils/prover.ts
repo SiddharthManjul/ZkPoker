@@ -244,3 +244,82 @@ export function verifyProofSize(proof: Buffer, minSize: number = 388): boolean {
   // Plus public witness (12 header bytes + N*32 bytes for fields)
   return proof.length >= minSize;
 }
+
+/**
+ * Proof types matching the Rust ProofType enum
+ */
+export const ProofType = {
+  Deck: 0,
+  Reveal: 1,
+  Showdown: 2,
+} as const;
+export type ProofType = (typeof ProofType)[keyof typeof ProofType];
+
+/**
+ * Chunk size for proof uploads (safe size under tx limit)
+ * Account for instruction overhead: ~200 bytes for metadata + signatures
+ */
+const CHUNK_SIZE = 900;
+
+/**
+ * Upload proof to a ProofBuffer PDA in chunks
+ * @param program - The Anchor program instance
+ * @param proof - The proof + public witness Buffer to upload
+ * @param hand - The hand public key
+ * @param player - The player keypair
+ * @param proofType - The type of proof (Deck/Reveal/Showdown)
+ * @returns The proof buffer PDA public key
+ */
+export async function uploadProofToBuffer(
+  program: any,
+  proof: Buffer,
+  hand: any, // PublicKey
+  player: any, // Keypair
+  proofType: ProofType
+): Promise<any> {
+  const { PublicKey } = await import("@solana/web3.js");
+
+  // Derive proof buffer PDA
+  const [proofBuffer] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("proof_buffer"),
+      hand.toBuffer(),
+      player.publicKey.toBuffer(),
+      Buffer.from([proofType]),
+    ],
+    program.programId
+  );
+
+  // Initialize buffer
+  await program.methods
+    .initProofBuffer(proofType, proof.length)
+    .accounts({
+      player: player.publicKey,
+      hand,
+      proofBuffer,
+    })
+    .signers([player])
+    .rpc();
+
+  console.log(`   Proof buffer initialized: ${proof.length} bytes`);
+
+  // Upload in chunks
+  for (let offset = 0; offset < proof.length; offset += CHUNK_SIZE) {
+    const end = Math.min(offset + CHUNK_SIZE, proof.length);
+    const chunk = proof.slice(offset, end);
+
+    await program.methods
+      .uploadProofChunk(offset, chunk)
+      .accounts({
+        player: player.publicKey,
+        proofBuffer,
+      })
+      .signers([player])
+      .rpc();
+
+    console.log(`   Uploaded chunk: ${offset}-${end} (${chunk.length} bytes)`);
+  }
+
+  console.log(`   ✅ Proof buffer upload complete`);
+  return proofBuffer;
+}

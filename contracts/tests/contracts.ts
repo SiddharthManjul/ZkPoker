@@ -13,7 +13,7 @@ import * as crypto from "crypto";
 import { keccak256 } from "js-sha3";
 import { shuffleDeck, getHoleCards, getFlopCards } from "./utils/deck";
 import { generateSalt } from "./utils/crypto";
-import { generateDeckProof, generateRevealProof, generateShowdownProof, proofToBytes } from "./utils/prover";
+import { generateDeckProof, generateRevealProof, generateShowdownProof, proofToBytes, uploadProofToBuffer, ProofType } from "./utils/prover";
 import { commitmentToBytes } from "./utils/commitments";
 
 
@@ -568,17 +568,26 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
         commitmentToBytes(commitments[1]),
       ];
 
+      // Upload proof to buffer PDA
+      const proofBuffer = await uploadProofToBuffer(
+        program,
+        proof,
+        hand,
+        player1,
+        ProofType.Deck
+      );
 
       // Verifier program from constants
-      const deckVerifier = new PublicKey("9m5VeCmB9YCH3NGWu9Bs5m7ngzzyjWEcHecHHwabs3qg");
+      const deckVerifier = new PublicKey("5mWDL7NZwacC8fxVouwEwUgvJGQMpcaAfjmyMNkwzWEd");
 
       await program.methods
-        .commitHoleCards(commitmentsArray, proof)
+        .commitHoleCards(commitmentsArray)
         .accounts({
           player: player1.publicKey,
           globalConfig,
           table,
           hand,
+          proofBuffer,
           verifierProgram: deckVerifier,
         })
         .signers([player1])
@@ -622,15 +631,25 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
         commitmentToBytes(commitments[1]),
       ];
 
-      const deckVerifier = new PublicKey("9m5VeCmB9YCH3NGWu9Bs5m7ngzzyjWEcHecHHwabs3qg");
+      // Upload proof to buffer PDA
+      const proofBuffer = await uploadProofToBuffer(
+        program,
+        proof,
+        hand,
+        player2,
+        ProofType.Deck
+      );
+
+      const deckVerifier = new PublicKey("5mWDL7NZwacC8fxVouwEwUgvJGQMpcaAfjmyMNkwzWEd");
 
       await program.methods
-        .commitHoleCards(commitmentsArray, proof)
+        .commitHoleCards(commitmentsArray)
         .accounts({
           player: player2.publicKey,
           globalConfig,
           table,
           hand,
+          proofBuffer,
           verifierProgram: deckVerifier,
         })
         .signers([player2])
@@ -660,15 +679,25 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
 
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const revealVerifier = new PublicKey("7cP73kZUSMWJWFrVU2g8pshLNMVbpKdrVM6QfXVZA5yU");
+      // Upload proof to buffer PDA
+      const proofBuffer = await uploadProofToBuffer(
+        program,
+        proof,
+        hand,
+        player1,
+        ProofType.Reveal
+      );
+
+      const revealVerifier = new PublicKey("9Yp14dZ4ZVY9ckWn5tzyEaymy4r1dH5VwCbCwKSRgvTx");
 
       await program.methods
-        .revealFlop(Array.from(flopCards), proof)
+        .revealFlop(Array.from(flopCards))
         .accounts({
           player: player1.publicKey,
           globalConfig,
           table,
           hand,
+          proofBuffer,
           verifierProgram: revealVerifier,
         })
         .signers([player1])
@@ -701,15 +730,25 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
 
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const revealVerifier = new PublicKey("7cP73kZUSMWJWFrVU2g8pshLNMVbpKdrVM6QfXVZA5yU");
+      // Upload proof to buffer PDA
+      const proofBuffer = await uploadProofToBuffer(
+        program,
+        proof,
+        hand,
+        player1,
+        ProofType.Reveal
+      );
+
+      const revealVerifier = new PublicKey("9Yp14dZ4ZVY9ckWn5tzyEaymy4r1dH5VwCbCwKSRgvTx");
 
       await program.methods
-        .revealTurn([turnCard], proof)
+        .revealTurn(turnCard)
         .accounts({
           player: player1.publicKey,
           globalConfig,
           table,
           hand,
+          proofBuffer,
           verifierProgram: revealVerifier,
         })
         .signers([player1])
@@ -743,15 +782,25 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
 
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const revealVerifier = new PublicKey("7cP73kZUSMWJWFrVU2g8pshLNMVbpKdrVM6QfXVZA5yU");
+      // Upload proof to buffer PDA
+      const proofBuffer = await uploadProofToBuffer(
+        program,
+        proof,
+        hand,
+        player1,
+        ProofType.Reveal
+      );
+
+      const revealVerifier = new PublicKey("9Yp14dZ4ZVY9ckWn5tzyEaymy4r1dH5VwCbCwKSRgvTx");
 
       await program.methods
-        .revealRiver([riverCard], proof)
+        .revealRiver(riverCard)
         .accounts({
           player: player1.publicKey,
           globalConfig,
           table,
           hand,
+          proofBuffer,
           verifierProgram: revealVerifier,
         })
         .signers([player1])
@@ -798,15 +847,25 @@ describe("ZkPoker Contracts - Comprehensive Tests", () => {
       console.log(`   Hand rank: ${handRank}`);
       console.log(`   Proof: ${proof.length} bytes`);
 
-      const showdownVerifier = new PublicKey("8YsXYVwrAayARZYCxz8iDDVVRQdkcR3RWZL7oW1y5LfP");
+      // Upload proof to buffer PDA
+      const proofBuffer = await uploadProofToBuffer(
+        program,
+        proof,
+        hand,
+        player1,
+        ProofType.Showdown
+      );
+
+      const showdownVerifier = new PublicKey("7urWEDFxTrKSE6X6zGdd9wgkCEieAWHXSCxEd8zxcTgh");
 
       await program.methods
-        .revealHand(handRank, proof)
+        .revealHand(new anchor.BN(handRank.toString()))
         .accounts({
           player: player1.publicKey,
           globalConfig,
           table,
           hand,
+          proofBuffer,
           verifierProgram: showdownVerifier,
         })
         .signers([player1])
