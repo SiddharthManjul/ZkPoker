@@ -83,28 +83,10 @@ pub fn handle_reveal_hand(
     };
     require!(!already_revealed, ZkPokerError::HandAlreadyRevealed);
 
-    // Get commitments for this player
-    let commitments = match seat {
-        0 => &hand.p1_hole_commits,
-        1 => &hand.p2_hole_commits,
-        _ => return Err(ZkPokerError::PlayerNotAtTable.into()),
-    };
-
-    // Build community cards array
-    let community_cards = [
-        hand.flop[0],
-        hand.flop[1],
-        hand.flop[2],
-        hand.turn,
-        hand.river,
-    ];
-
     // Verify ZK proof
+    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_hand_reveal(
         &ctx.accounts.verifier_program,
-        commitments,
-        &community_cards,
-        hand_rank,
         &proof,
     )?;
 
