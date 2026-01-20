@@ -1,12 +1,13 @@
 use anchor_lang::prelude::*;
-use crate::state::{GlobalConfig, Table, Hand, HandStage};
+use crate::state::{GlobalConfig, Table, Hand, HandStage, ProofBuffer, ProofType};
 use crate::errors::ZkPokerError;
 use crate::constants::{GLOBAL_SEED, TABLE_SEED, HAND_SEED};
 use crate::utils::verify_community_cards;
 
-/// Reveal community cards context
+/// Reveal community cards context (proof from buffer)
 #[derive(Accounts)]
 pub struct RevealCommunity<'info> {
+    #[account(mut)]
     pub player: Signer<'info>,
 
     #[account(
@@ -30,20 +31,31 @@ pub struct RevealCommunity<'info> {
     )]
     pub hand: Account<'info, Hand>,
 
+    /// Proof buffer containing the ZK proof data
+    #[account(
+        mut,
+        close = player,
+        has_one = player @ ZkPokerError::Unauthorized,
+        constraint = proof_buffer.hand == hand.key() @ ZkPokerError::BufferMismatch,
+        constraint = proof_buffer.proof_type == ProofType::Reveal @ ZkPokerError::BufferMismatch,
+        constraint = proof_buffer.complete @ ZkPokerError::BufferNotComplete
+    )]
+    pub proof_buffer: Account<'info, ProofBuffer>,
+
     /// CHECK: REVEAL verifier program - verified in verification function
     #[account(constraint = verifier_program.key() == global_config.reveal_verifier @ ZkPokerError::ProofVerificationFailed)]
     pub verifier_program: AccountInfo<'info>,
 }
 
-/// Reveal flop handler (3 cards)
+/// Reveal flop handler (3 cards, proof from buffer)
 pub fn handle_reveal_flop(
     ctx: Context<RevealCommunity>,
     cards: [u8; 3],
-    proof: Vec<u8>,
 ) -> Result<()> {
     let table = &ctx.accounts.table;
     let hand = &mut ctx.accounts.hand;
     let player = ctx.accounts.player.key();
+    let proof_buffer = &ctx.accounts.proof_buffer;
 
     // Verify player is at table
     let _seat = table.get_seat(&player).ok_or(ZkPokerError::PlayerNotAtTable)?;
@@ -59,11 +71,13 @@ pub fn handle_reveal_flop(
         require!(*card < 52, ZkPokerError::InvalidCardIndex);
     }
 
+    // Get proof data from buffer
+    let proof_data = proof_buffer.get_proof_data()?;
+
     // Verify ZK proof that cards are at correct positions
-    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_community_cards(
         &ctx.accounts.verifier_program,
-        &proof,
+        proof_data,
     )?;
 
     // Store revealed flop
@@ -79,15 +93,15 @@ pub fn handle_reveal_flop(
     Ok(())
 }
 
-/// Reveal turn handler (1 card)
+/// Reveal turn handler (1 card, proof from buffer)
 pub fn handle_reveal_turn(
     ctx: Context<RevealCommunity>,
     card: u8,
-    proof: Vec<u8>,
 ) -> Result<()> {
     let table = &ctx.accounts.table;
     let hand = &mut ctx.accounts.hand;
     let player = ctx.accounts.player.key();
+    let proof_buffer = &ctx.accounts.proof_buffer;
 
     // Verify player is at table
     let _seat = table.get_seat(&player).ok_or(ZkPokerError::PlayerNotAtTable)?;
@@ -104,11 +118,13 @@ pub fn handle_reveal_turn(
     // Validate card index
     require!(card < 52, ZkPokerError::InvalidCardIndex);
 
+    // Get proof data from buffer
+    let proof_data = proof_buffer.get_proof_data()?;
+
     // Verify ZK proof that card is at correct position
-    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_community_cards(
         &ctx.accounts.verifier_program,
-        &proof,
+        proof_data,
     )?;
 
     // Store revealed turn
@@ -124,15 +140,15 @@ pub fn handle_reveal_turn(
     Ok(())
 }
 
-/// Reveal river handler (1 card)
+/// Reveal river handler (1 card, proof from buffer)
 pub fn handle_reveal_river(
     ctx: Context<RevealCommunity>,
     card: u8,
-    proof: Vec<u8>,
 ) -> Result<()> {
     let table = &ctx.accounts.table;
     let hand = &mut ctx.accounts.hand;
     let player = ctx.accounts.player.key();
+    let proof_buffer = &ctx.accounts.proof_buffer;
 
     // Verify player is at table
     let _seat = table.get_seat(&player).ok_or(ZkPokerError::PlayerNotAtTable)?;
@@ -149,11 +165,13 @@ pub fn handle_reveal_river(
     // Validate card index
     require!(card < 52, ZkPokerError::InvalidCardIndex);
 
+    // Get proof data from buffer
+    let proof_data = proof_buffer.get_proof_data()?;
+
     // Verify ZK proof that card is at correct position
-    // Note: 'proof' parameter contains both proof + public witness from Sunspot
     verify_community_cards(
         &ctx.accounts.verifier_program,
-        &proof,
+        proof_data,
     )?;
 
     // Store revealed river
