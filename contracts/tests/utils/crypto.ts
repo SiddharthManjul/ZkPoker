@@ -3,7 +3,7 @@
  * Uses Poseidon2 hash over BN254 curve (same as Noir circuits)
  */
 
-import { poseidon2, poseidon5 } from "poseidon-lite";
+import { poseidon2Hash } from "@zkpassport/poseidon2";
 
 /**
  * Convert a value to BigInt for hashing
@@ -34,11 +34,12 @@ export function bufferToField(buffer: Buffer): bigint {
 /**
  * Hash a single field element with a salt using Poseidon2
  * Matches: hash_with_salt(value: Field, salt: Field) -> Field
+ * Uses @zkpassport/poseidon2 which is compatible with Noir's Poseidon2
  */
 export function hashWithSalt(value: number | bigint, salt: number | bigint): bigint {
   const v = toBigInt(value);
   const s = toBigInt(salt);
-  return poseidon2([v, s]);
+  return poseidon2Hash([v, s]);
 }
 
 /**
@@ -48,38 +49,17 @@ export function hashWithSalt(value: number | bigint, salt: number | bigint): big
 export function hashPair(a: number | bigint, b: number | bigint): bigint {
   const a_ = toBigInt(a);
   const b_ = toBigInt(b);
-  return poseidon2([a_, b_]);
+  return poseidon2Hash([a_, b_]);
 }
 
 /**
  * Hash an array of field elements
  * Matches: hash_array<let N: u32>(arr: [Field; N]) -> Field
+ * Uses @zkpassport/poseidon2 sponge mode for any array size
  */
 export function hashArray(arr: (number | bigint)[]): bigint {
   const bigIntArr = arr.map(toBigInt);
-
-  // For arrays larger than 5, we need to use a sponge construction
-  // or hash in chunks. For now, we support up to 52 elements (deck size)
-  if (bigIntArr.length <= 2) {
-    return poseidon2(bigIntArr);
-  } else if (bigIntArr.length <= 5) {
-    return poseidon5(bigIntArr);
-  } else {
-    // For larger arrays (like 52-card deck), use sponge construction
-    // Hash in chunks of 5 and accumulate
-    let state = 0n;
-    for (let i = 0; i < bigIntArr.length; i += 5) {
-      const chunk = bigIntArr.slice(i, Math.min(i + 5, bigIntArr.length));
-      // Pad chunk to 5 elements with zeros if needed
-      while (chunk.length < 5) {
-        chunk.push(0n);
-      }
-      // Mix in previous state
-      chunk[0] = poseidon2([chunk[0], state]);
-      state = poseidon5(chunk);
-    }
-    return state;
-  }
+  return poseidon2Hash(bigIntArr);
 }
 
 /**
@@ -87,8 +67,9 @@ export function hashArray(arr: (number | bigint)[]): bigint {
  * Used for Fisher-Yates shuffle
  */
 export function randomFromSeed(seed: bigint, index: number): bigint {
-  return poseidon2([seed, BigInt(index)]);
+  return poseidon2Hash([seed, BigInt(index)]);
 }
+
 
 /**
  * Convert field element to number (mod n)
